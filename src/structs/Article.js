@@ -114,7 +114,7 @@ function evalRegexConfig (feed, text, placeholderName) {
 function cleanup (feed, text, imgSrcs, anchorLinks) {
   if (!text) return ''
   const config = getConfig()
-  text = htmlDecoder({ data: text }, {}).replace(/\*/gi, '')
+  text = htmlDecoder({ data: text }, {}).replace(/\*/gi, '\\*')
     .replace(/<(strong|b)>(.*?)<\/(strong|b)>/gi, '**$2**') // Bolded markdown
     .replace(/<(em|i)>(.*?)<(\/(em|i))>/gi, '*$2*') // Italicized markdown
     .replace(/<(u)>(.*?)<(\/(u))>/gi, '__$2__') // Underlined markdown
