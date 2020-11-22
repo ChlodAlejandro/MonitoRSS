@@ -7,7 +7,7 @@ const Filter = require('./Filter.js')
 const FilterRegex = require('./FilterRegex.js')
 const getConfig = require('../config.js').get
 const VALID_PH_IMGS = ['title', 'description', 'summary']
-const VALID_PH_ANCHORS = ['title', 'description', 'summary']
+const VALID_PH_ANCHORS = ['title', 'description', 'summary', 'embedDescription']
 const BASE_REGEX_PHS = ['title', 'author', 'summary', 'description', 'guid', 'date', 'link']
 
 function dateHasNoTime (date) { // Determine if the time is T00:00:00.000Z
@@ -171,6 +171,60 @@ function cleanup (feed, text, imgSrcs, anchorLinks) {
   return arr.join('\n').trim()
 }
 
+function embedCleanup (feed, text) {
+  if (!text) return ''
+  const config = getConfig()
+  text = htmlDecoder({ data: text }, {}).replace(/\*/gi, '\\*')
+    .replace(/<(strong|b)>(.*?)<\/(strong|b)>/gi, '**$2**') // Bolded markdown
+    .replace(/<(em|i)>(.*?)<(\/(em|i))>/gi, '*$2*') // Italicized markdown
+    .replace(/<(u)>(.*?)<(\/(u))>/gi, '__$2__') // Underlined markdown
+
+  text = htmlConvert.fromString(text, {
+    tables: (feed.formatTables !== undefined && typeof feed.formatTables === 'boolean' ? feed.formatTables : config.feeds.formatTables) === true ? true : [],
+    wordwrap: null,
+    ignoreHref: true,
+    noLinkBrackets: true,
+    format: {
+      image: node => {
+        const isStr = typeof node.attribs.src === 'string'
+        let link = isStr ? node.attribs.src.trim().replace(/\s/g, '%20') : node.attribs.src
+        if (isStr && link.startsWith('//')) link = 'http:' + link
+        else if (isStr && !link.startsWith('http://') && !link.startsWith('https://')) link = 'http://' + link
+
+        let exist = true
+        const globalExistOption = config.feeds.imgLinksExistence
+        exist = globalExistOption
+        const specificExistOption = feed.imgLinksExistence
+        exist = typeof specificExistOption !== 'boolean' ? exist : specificExistOption
+        if (!exist) return ''
+
+        let image = ''
+        const globalPreviewOption = config.feeds.imgPreviews
+        image = globalPreviewOption ? link : `<${link}>`
+        const specificPreviewOption = feed.imgPreviews
+        image = typeof specificPreviewOption !== 'boolean' ? image : specificPreviewOption === true ? link : `<${link}>`
+
+        return image
+      },
+      anchor: (node, fn, options) => {
+        const orig = fn(node.children, options)
+        const href = node.attribs.href ? node.attribs.href.trim() : ''
+        return `[${orig}](${href})`
+      },
+      blockquote: (node, fn, options) => {
+        const orig = fn(node.children, options).trim()
+        return '> ' + orig.replace(/(?:\n)/g, '\n> ') + '\n'
+      }
+    }
+  })
+
+  text = text.replace(/\n\s*\n\s*\n/g, '\n\n') // Replace triple line breaks with double
+    .replace(/@/g, '@' + String.fromCharCode(8203)) // Sanitize mentions with zero-width character "\u200b", does not affect subscribed roles or modify anything outside the scope of sanitizing Discord mentions in the raw RSS feed content
+  const arr = text.split('\n')
+  for (var q = 0; q < arr.length; ++q) arr[q] = arr[q].replace(/\s+$/, '') // Remove trailing spaces
+  return arr.join('\n').trim()
+}
+
 module.exports = class Article {
   constructor (raw, feedData) {
     const feed = feedData.feed
@@ -183,7 +237,7 @@ module.exports = class Article {
     this.youtube = !!(raw.guid && raw.guid.startsWith('yt:video') && raw['media:group'] && raw['media:group']['media:description'] && raw['media:group']['media:description']['#'])
     this.enabledRegex = typeof feed.regexOps === 'object' && feed.regexOps.disabled !== true
     this.placeholdersForRegex = BASE_REGEX_PHS.slice()
-    this.privatePlaceholders = ['id', 'fullDescription', 'fullSummary', 'fullTitle', 'fullDate']
+    this.privatePlaceholders = ['id', 'fullDescription', 'fullEmbedDescription', 'fullSummary', 'fullTitle', 'fullDate']
     this.placeholders = []
     this.meta = raw.meta
     this.guid = raw.guid
@@ -243,6 +297,11 @@ module.exports = class Article {
       this[term] = this.descriptionAnchors[desAnchorNum]
       if (this.enabledRegex) this.placeholdersForRegex.push(term)
     }
+
+    // Embed Description (support for masked links)
+    this.fullEmbedDescription = this.youtube ? raw['media:group']['media:description']['#'] : embedCleanup(feed, raw.description, this.descriptionImages, this.descriptionAnchors)
+    this.embedDescription = this.fullEmbedDescription.length > 800 ? `${this.fullEmbedDescription.slice(0, 790)}...` : this.fullEmbedDescription
+    if (this.embedDescription) this.placeholders.push('embedDescription')
 
     if (this.reddit) {
       // Truncate the useless end of reddit description after anchors are removed
@@ -698,6 +757,7 @@ module.exports = class Article {
       .replace(/({subscriptions})|({subscribers})/g, this.subscribers)
       .replace(/{link}/g, this.link)
       .replace(/{description}/g, ignoreCharLimits ? this.fullDescription : this.description)
+      .replace(/{embedDescription}/g, ignoreCharLimits ? this.fullEmbedDescription : this.embedDescription)
       .replace(/{tags}/g, this.tags)
       .replace(/{guid}/g, this.guid)
       .replace(/\\u200b/g, '\u200b')
