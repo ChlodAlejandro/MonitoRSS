@@ -90,6 +90,11 @@ exports.set = (override, skipValidation) => {
       ? botOverride.exitOnExcessRateLimits
       : bot.exitOnExcessRateLimits
   bot.userAgent = process.env.DRSS_BOT_USERAGENT || botOverride.userAgent || bot.userAgent
+  bot.feedRequestTimeoutMs = process.env.DRSS_BOT_FEEDREQUESTTIMEOUTMS !== undefined
+    ? Number(process.env.DRSS_BOT_FEEDREQUESTTIMEOUTMS)
+    : botOverride.feedRequestTimeoutMs !== undefined
+      ? botOverride.feedRequestTimeoutMs
+      : bot.feedRequestTimeoutMs
 
   // DATABASE
   if (!override.database) {
@@ -235,6 +240,7 @@ exports.set = (override, skipValidation) => {
 
   // Web URL
   config.webURL = process.env.DRSS_WEBURL || override.webURL || config.webURL
+  config.discordSupportURL = process.env.DRSS_DISCORDSUPPORTURL || override.discordSupportURL || config.discordSupportURL
 
   // Delivery service
   config.deliveryServiceURL = process.env.MRSS_DELIVERYSERVICEURL || override.deliveryServiceURL || config.deliveryServiceURL
