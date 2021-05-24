@@ -2,6 +2,7 @@ const Base = require('./Base.js')
 const FilterBase = require('./FilterBase.js')
 const FeedModel = require('../../models/Feed.js')
 const FilteredFormat = require('./FilteredFormat.js')
+const Guild = require('../Guild.js')
 const Subscriber = require('./Subscriber.js')
 const Schedule = require('./Schedule.js')
 const Supporter = require('./Supporter.js')
@@ -158,6 +159,12 @@ class Feed extends FilterBase {
     this.pcomparisons = this.getField('pcomparisons', [])
   }
 
+  static get DISABLE_REASONS () {
+    return {
+      BAD_FORMAT: 'There was an issue sending an article due to an incorrectly-formatted text or embed. Update the feed and ensure it works to re-enable'
+    }
+  }
+
   static get SPLIT_KEYS () {
     return ['char', 'prepend', 'append', 'maxLength']
   }
@@ -276,25 +283,28 @@ class Feed extends FilterBase {
   }
 
   /**
-   * @param {string[]} supporterGuilds
+   * @param {Set<string>} [supporterGuilds]
    * @returns {boolean}
    */
   async hasFastSupporterSchedule (supporterGuilds) {
     if (supporterGuilds) {
-      return supporterGuilds.includes(this.guild)
-    } else {
-      const supporter = await Supporter.getValidSupporterOfGuild(this.guild)
-      if (!supporter) {
-        return false
-      } else {
-        return !(await supporter.hasSlowRate())
-      }
+      return supporterGuilds.has(this.guild)
+    }
+    // Check new subscriptions and prioritize it first over legacy Supporters
+    const guild = new Guild(this.guild)
+    const subscriber = await guild.getSubscription()
+    if (subscriber) {
+      return !subscriber.slowRate
+    }
+    const supporter = await guild.getSupporter()
+    if (supporter) {
+      return !(await supporter.hasSlowRate())
     }
   }
 
   /**
    * @param {Schedule[]} [schedules] - All stored schedules
-   * @param {string[]} [fastSupporterGuilds] - Array of supporter guild IDs
+   * @param {Set<string>} [fastSupporterGuilds] - Array of supporter guild IDs
    * @returns {Schedule}
    */
   async determineSchedule (schedules, fastSupporterGuilds) {

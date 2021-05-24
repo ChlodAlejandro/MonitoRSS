@@ -10,7 +10,59 @@ function envArray (name) {
   return value.split(',').map(s => s.trim())
 }
 
+function resolveBoolValue (envName, originalValue, overrideValue) {
+  return process.env[envName] !== undefined
+    ? process.env[envName] === 'true'
+    : overrideValue !== undefined
+      ? overrideValue
+      : originalValue
+}
+
+function resolveStringValue (envName, originalValue, overrideValue) {
+  return process.env[envName] || overrideValue || originalValue
+}
+
 exports.set = (override, skipValidation) => {
+  // APIS
+  if (!override.apis) {
+    override.apis = {
+      pledge: {},
+      discordHttpGateway: {}
+    }
+  }
+  const apis = config.apis
+
+  // APIS - Pledge
+  if (!override.apis.pledge) {
+    override.apis.pledge = {}
+  }
+  const apisPledge = apis.pledge
+  const apisPledgeOverride = override.apis.pledge
+  apis.pledge.enabled = resolveBoolValue(
+    'DRSS_APIS_PLEDGE_ENABLED',
+    apisPledge.enabled,
+    apisPledgeOverride.enabled
+  )
+  apis.pledge.url = process.env.DRSS_APIS_PLEDGE_URL || apisPledgeOverride.url || apisPledge.url
+  apis.pledge.accessToken = process.env.DRSS_APIS_PLEDGE_ACCESSTOKEN || apisPledgeOverride.accessToken || apisPledge.accessToken
+
+  // APIS - Discord HTTP Gateway
+  if (!override.apis.discordHttpGateway) {
+    override.apis.discordHttpGateway = {}
+  }
+  const apisDiscordHttpGateway = apis.discordHttpGateway
+  const apisDiscordHttpGatewayOverride = override.apis.discordHttpGateway
+  apis.discordHttpGateway.enabled = resolveBoolValue(
+    'DRSS_APIS_DISCORDHTTPGATEWAY_ENABLED',
+    apisDiscordHttpGateway.enabled,
+    apisDiscordHttpGatewayOverride.enabled
+  )
+  apis.discordHttpGateway.redisUri = resolveStringValue(
+    'DRSS_APIS_DISCORDHTTPGATEWAY_REDISURI',
+    apisDiscordHttpGatewayOverride.redisUri,
+    apisDiscordHttpGateway.redisUri
+  )
+
   // LOG
   if (!override.log) {
     override.log = {}
@@ -242,8 +294,12 @@ exports.set = (override, skipValidation) => {
   config.webURL = process.env.DRSS_WEBURL || override.webURL || config.webURL
   config.discordSupportURL = process.env.DRSS_DISCORDSUPPORTURL || override.discordSupportURL || config.discordSupportURL
 
-  // Delivery service
-  config.deliveryServiceURL = process.env.MRSS_DELIVERYSERVICEURL || override.deliveryServiceURL || config.deliveryServiceURL
+  // Disale feed cycles
+  config.disableFeedCycles = resolveBoolValue(
+    'DRSS_DISABLEFEEDCYCLES',
+    config.disableFeedCycles,
+    override.disableFeedCycles
+  )
 
   // Other private ones
   config.dev = process.env.DRSS_DEV !== undefined

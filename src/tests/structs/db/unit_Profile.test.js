@@ -1,5 +1,4 @@
 process.env.TEST_ENV = true
-const config = require('../../../config.js')
 const Profile = require('../../../structs/db/Profile.js')
 const Supporter = require('../../../structs/db/Supporter.js')
 
@@ -125,22 +124,6 @@ describe('Unit::structs/db/Profile', function () {
         .mockImplementation()
       await Profile.populatePrefixes()
       expect(Profile.prefixes.size).toEqual(0)
-    })
-  })
-  describe('static getFeedLimit', function () {
-    it('calls supporter get max feeds if supporter', async function () {
-      const maxFeeds = 22
-      const getMaxFeeds = jest.fn(() => maxFeeds)
-      Supporter.getValidSupporterOfGuild.mockResolvedValue({ getMaxFeeds })
-      const returned = await Profile.getFeedLimit()
-      expect(Supporter.getValidSupporterOfGuild).toHaveBeenCalledTimes(1)
-      expect(returned).toEqual(maxFeeds)
-    })
-    it('returns config max feeds if no supporter', async function () {
-      Supporter.getValidSupporterOfGuild.mockResolvedValue(null)
-      const returned = await Profile.getFeedLimit()
-      expect(Supporter.getValidSupporterOfGuild).toHaveBeenCalledTimes(1)
-      expect(returned).toEqual(config.get().feeds.max)
     })
   })
   describe('setPrefixAndSave', function () {

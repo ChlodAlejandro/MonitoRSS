@@ -72,7 +72,32 @@ const advancedSchema = Joi.object({
   parallelRuns: Joi.number().greater(0).strict().default(1)
 })
 
+const pledgeApiSchema = Joi.object({
+  enabled: Joi.bool().strict().default(false),
+  url: Joi.string().allow('').default(''),
+  accessToken: Joi.string().strict().allow('').default('').when('url', {
+    is: Joi.string().strict().min(1),
+    then: Joi.string().strict().required(),
+    otherwise: Joi.string().strict().allow('')
+  })
+})
+
+const discordHttpGateway = Joi.object({
+  enabled: Joi.bool().strict().default(false),
+  redisUri: Joi.string().strict().allow('').default('').when('enabled', {
+    is: Joi.bool().valid(true).required(),
+    then: Joi.string().strict().required().disallow(''),
+    otherwise: Joi.string().strict().allow('').default('')
+  })
+})
+
+const apisSchema = Joi.object({
+  pledge: pledgeApiSchema.default(pledgeApiSchema.validate({}).value),
+  discordHttpGateway: discordHttpGateway.default(discordHttpGateway.validate({}).value)
+})
+
 const schema = Joi.object({
+  apis: apisSchema.default(apisSchema.validate({}).value),
   dev: Joi.number().strict().greater(-1),
   _vip: Joi.bool().strict(),
   _vipRefreshRateMinutes: Joi.number().strict(),
@@ -82,12 +107,13 @@ const schema = Joi.object({
   feeds: feedsSchema.default(feedsSchema.validate({}).value),
   advanced: advancedSchema.default(advancedSchema.validate({}).value),
   webURL: Joi.string().strict().allow('').allow('').default(''),
-  deliveryServiceURL: Joi.string().uri().strict().allow(''),
-  discordSupportURL: Joi.string().uri().strict().allow('')
+  discordSupportURL: Joi.string().uri().strict().allow(''),
+  disableFeedCycles: Joi.bool().strict().default(false)
 })
 
 module.exports = {
   schemas: {
+    apis: apisSchema,
     log: logSchema,
     bot: botSchema,
     database: databaseSchema,
